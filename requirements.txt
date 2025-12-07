@@ -1,0 +1,6 @@
+pandas
+numpy
+nba_api
+plotly
+shinywidgets
+scipy
