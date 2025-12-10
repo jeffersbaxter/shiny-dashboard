@@ -2,6 +2,7 @@ import numpy as np
 import plotly.express as px
 import plotly.figure_factory as ff
 import plotly.graph_objects as go
+import pandas as pd
 
 color_palette = px.colors.qualitative.D3
 
@@ -140,5 +141,161 @@ def density_plot(careers_df, stats_df, stat, players_dict, on_rug_click):
     # Convert Figure to FigureWidget so we can add click events
     fig = go.FigureWidget(fig.data, fig.layout)
     fig.data[1].on_click(on_rug_click)  # Rug plot is now index 1
+
+    return fig
+
+
+def plot_swing_vs_whiff(df, top_n=40):
+    """
+    Scatter: swing_rate (x) vs whiff_rate (y)
+    color = hardhit_percent, size = barrels_per_pa_percent
+    Filter to top_n by plate appearances (pa) to avoid tiny-sample noise.
+    """
+    df_plot = df.copy()
+    if 'pa' in df_plot.columns:
+        df_plot = df_plot.sort_values('pa', ascending=False).head(top_n)
+    else:
+        df_plot = df_plot.head(top_n)
+
+    # convert to percent for labeling if desired
+    df_plot['swing_pct'] = round(df_plot['swing_rate'] * 100, 2)
+    df_plot['whiff_pct'] = round(df_plot['whiff_rate'] * 100, 2)
+    df_plot['hardhit_pct'] = round(df_plot['hardhit_percent'] * 100, 2)
+    df_plot['barrels_per_pa_pct'] = round(df_plot['barrels_per_pa_percent'] * 100, 2)
+    df_plot['barrels_per_pa_percent'] = round(df_plot['barrels_per_pa_percent'], 2)
+
+    fig = px.scatter(
+        df_plot,
+        x='swing_rate',
+        y='whiff_rate',
+        color='hardhit_pct',               # use fraction (0-1) or percent
+        size='barrels_per_pa_percent',         # bubble size
+        hover_data=['player_name', 'xwoba', 'xslg'],
+        labels={
+            'swing_rate': 'Swing % (fraction)',
+            'whiff_rate': 'Whiff % (fraction)',
+            'hardhit_pct': 'Hard-hit %',
+            'barrels_per_pa_percent': 'Barrels/PA'
+        },
+        title=f"Swing% vs Whiff% (Top {len(df_plot)} by PA)"
+    )
+    fig.update_layout(yaxis_tickformat=".0%", xaxis_tickformat=".0%")
+    return fig
+
+
+def plot_power_vs_expected(df):
+    fig = px.scatter(
+        df,
+        x="slg",
+        y="xslg",
+        size="barrels_per_pa_percent",
+        color="hardhit_percent",
+        hover_data=["player_name", "slg", "xslg", "hardhit_percent", "barrels_per_pa_percent"],
+        labels={
+            "slg": "Actual SLG",
+            "xslg": "Expected SLG",
+            "hardhit_percent": "HardHit %",
+            "barrels_per_pa_percent": "Barrels / PA %"
+        },
+        title="Power vs Expected Power<br><sup>Bubble size: Barrels/PA • Color: HardHit%</sup>",
+        height=600
+    )
+
+    fig.update_traces(mode="markers", marker=dict(sizemode="area", opacity=0.8))
+    fig.update_layout(xaxis=dict(zeroline=True), yaxis=dict(zeroline=True))
+    return fig
+
+
+def plot_power_gap_lollipop(df, top_n=30):
+
+    # compute gap
+    df = df.copy()
+    df["power_gap"] = df["xslg"] - df["slg"]
+
+    # pick top players by absolute gap
+    df = df.reindex(df["power_gap"].abs().sort_values(ascending=False).index)
+    df = df.head(top_n)
+
+    fig = go.Figure()
+
+    # Lollipop "stick"
+    fig.add_trace(go.Scatter(
+        x=df["xslg"],
+        y=df["player_name"],
+        mode="lines",
+        line=dict(color="lightgray", width=2),
+        showlegend=False
+    ))
+
+    # Starting point (SLG)
+    fig.add_trace(go.Scatter(
+        x=df["slg"],
+        y=df["player_name"],
+        mode="markers",
+        marker=dict(color="red", size=12),
+        name="SLG"
+    ))
+
+    # Ending point (xSLG)
+    fig.add_trace(go.Scatter(
+        x=df["xslg"],
+        y=df["player_name"],
+        mode="markers",
+        marker=dict(color="green", size=12),
+        name="xSLG"
+    ))
+
+    fig.update_layout(
+        title="SLG vs xSLG Gap",
+        xaxis_title="SLG / xSLG",
+        height=600,
+        margin=dict(l=120, r=40, t=60)
+    )
+
+    return fig
+
+
+def plot_hitter_radial_profile(df, player_name):
+    """
+    Creates a polar bar chart showing a hitter's overall batted-ball/contact profile.
+    """
+
+    metrics = {
+        "Launch Speed (EV)": "launch_speed",
+        "Launch Angle": "launch_angle",
+        "HardHit %": "hardhit_percent",
+        "Barrels/Batted Ball %": "barrels_per_bbe_percent",
+        "BABIP": "babip",
+        "SLG": "slg",
+    }
+
+    # subset to player
+    row = df[df["player_name"] == player_name].iloc[0]
+
+    chart_df = pd.DataFrame({
+        "metric": list(metrics.keys()),
+        "value": [row[col] for col in metrics.values()]
+    })
+
+    print(chart_df[['value']])
+
+    fig = px.bar_polar(
+        chart_df,
+        r="value",
+        theta="metric",
+        color="metric",
+        template="plotly_dark",
+        title=f"{player_name} — Batted-Ball Profile",
+    )
+
+    fig.update_traces(opacity=0.85)
+    fig.update_layout(
+        height=250,
+        polar=dict(
+            radialaxis=dict(showline=False, showticklabels=False, ticks=""),
+            angularaxis=dict(showline=False, direction="clockwise"),
+        ),
+        showlegend=False
+    )
 
     return fig
