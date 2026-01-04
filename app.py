@@ -40,9 +40,10 @@ PLAYERS = [
     "Taveras, Leody"
 ]
 
-app_ui = ui.page_sidebar(
-    ui.sidebar(
-
+app_ui = ui.page_fillable(
+    ui.div(
+        ui.h2("2025 Trident Stats", class_="app-title"),
+        class_="page-header"
     ),
 
     ui.navset_card_tab(
@@ -88,9 +89,7 @@ app_ui = ui.page_sidebar(
         )
     ),
 
-    ui.include_css(app_dir / "styles.css"),
     title="2025 Trident Stats",
-    fillable=True,
 )
 
 

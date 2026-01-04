@@ -277,8 +277,6 @@ def plot_hitter_radial_profile(df, player_name):
         "value": [row[col] for col in metrics.values()]
     })
 
-    print(chart_df[['value']])
-
     fig = px.bar_polar(
         chart_df,
         r="value",
